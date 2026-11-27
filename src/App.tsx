@@ -23,11 +23,19 @@ import { SplashRevealOverlay } from './components/SplashRevealOverlay';
 import { ManageModal } from './components/ManageModal';
 import { HostControllerView } from './components/HostControllerView';
 import { ClimbDurationInput } from './components/ClimbDurationInput';
+import { RegistrationMobileView } from './components/RegistrationMobileView';
+import { RegistrationKioskView } from './components/RegistrationKioskView';
+import { isSupabaseConfigured } from './utils/supabaseClient';
+import {
+  fetchRegistrations,
+  mergeRegistrationsIntoParticipants,
+  subscribeToRegistrations,
+} from './utils/registrationService';
 
-function getViewMode(): 'controller' | 'projector' | null {
+function getViewMode(): 'controller' | 'projector' | 'register' | 'kiosk' | null {
   if (typeof window === 'undefined') return null;
   const v = new URLSearchParams(window.location.search).get('view');
-  if (v === 'controller' || v === 'projector') return v;
+  if (v === 'controller' || v === 'projector' || v === 'register' || v === 'kiosk') return v;
   return null;
 }
 
@@ -36,6 +44,12 @@ export function App() {
 
   if (viewMode === 'controller') {
     return <HostControllerView />;
+  }
+  if (viewMode === 'register') {
+    return <RegistrationMobileView />;
+  }
+  if (viewMode === 'kiosk') {
+    return <RegistrationKioskView />;
   }
 
   return <MainStageApp isProjector={viewMode === 'projector'} />;
@@ -133,6 +147,31 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
     window.addEventListener('storage', handleStorageEvent);
     return () => window.removeEventListener('storage', handleStorageEvent);
   }, []);
+
+  // Auto-sync live Supabase venue registrations into the active pool while idle
+  useEffect(() => {
+    if (isProjector || !isSupabaseConfigured() || stage !== 'idle') return;
+    let cancelled = false;
+
+    const syncCloud = async () => {
+      const { records } = await fetchRegistrations();
+      if (cancelled || records.length === 0) return;
+      setParticipants((prev) => {
+        const { merged, addedCount } = mergeRegistrationsIntoParticipants(prev, records);
+        return addedCount > 0 ? merged : prev;
+      });
+    };
+
+    void syncCloud();
+    const unsubscribe = subscribeToRegistrations(() => {
+      void syncCloud();
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [isProjector, stage]);
 
   const eligibleParticipants = useMemo(
     () => participants.filter((p) => p.active && p.weight > 0),

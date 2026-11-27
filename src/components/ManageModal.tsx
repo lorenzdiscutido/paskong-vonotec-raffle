@@ -2,14 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Check,
   CheckCircle2,
+  Copy,
   Download,
+  ExternalLink,
   FileSpreadsheet,
   Monitor,
   Pencil,
   Plus,
   Projector,
+  RefreshCw,
   RotateCcw,
   Settings2,
+  Smartphone,
+  Tablet,
   Trash2,
   Upload,
   UserPlus,
@@ -29,6 +34,11 @@ import {
 import { createId } from '../utils/rng';
 import { DEFAULT_SETTINGS, THEME_CONFIG } from '../data/defaults';
 import { ClimbDurationInput } from './ClimbDurationInput';
+import { isSupabaseConfigured } from '../utils/supabaseClient';
+import {
+  fetchRegistrations,
+  mergeRegistrationsIntoParticipants,
+} from '../utils/registrationService';
 
 interface ManageModalProps {
   isOpen: boolean;
@@ -100,6 +110,8 @@ export const ManageModal: React.FC<ManageModalProps> = ({
   >(null);
 
   const [backupFeedback, setBackupFeedback] = useState<string | null>(null);
+  const [cloudSyncFeedback, setCloudSyncFeedback] = useState<string | null>(null);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const backupInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1182,6 +1194,102 @@ export const ManageModal: React.FC<ManageModalProps> = ({
                       className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs text-amber-200 flex items-center gap-1.5 cursor-pointer transition"
                     >
                       <RotateCcw className="w-3.5 h-3.5" /> Reset Sample Roster
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Venue Registration (Supabase) */}
+            <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-700/70 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-sky-300">
+                      Venue Registration (Mobile + Kiosk)
+                    </h3>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                        isSupabaseConfigured()
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                          : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                      }`}
+                    >
+                      {isSupabaseConfigured() ? 'Supabase Connected' : 'Setup Needed'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 leading-relaxed">
+                    Share the Guest Check-In link (turn into a QR code at the door) or open the
+                    PIN-protected Usher Kiosk for guests without phones.
+                  </p>
+                  {cloudSyncFeedback && (
+                    <p className="text-xs text-amber-200 font-medium pt-0.5">{cloudSyncFeedback}</p>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onPlayClick();
+                      const url = `${window.location.origin}${window.location.pathname}?view=register`;
+                      void navigator.clipboard?.writeText(url);
+                      setCloudSyncFeedback('Copied Guest Check-In URL to clipboard.');
+                    }}
+                    className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-100 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> Copy Guest Link
+                  </button>
+                  <a
+                    href="?view=register"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-2 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-400/30 text-sky-200 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <Smartphone className="w-3.5 h-3.5" /> Guest Form
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  <a
+                    href="?view=kiosk"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/30 text-amber-200 text-xs font-semibold flex items-center gap-1.5 transition"
+                  >
+                    <Tablet className="w-3.5 h-3.5" /> Usher Kiosk
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                  {isSupabaseConfigured() && (
+                    <button
+                      type="button"
+                      disabled={cloudSyncing}
+                      onClick={async () => {
+                        onPlayClick();
+                        setCloudSyncing(true);
+                        const { records, error } = await fetchRegistrations();
+                        setCloudSyncing(false);
+                        if (error) {
+                          setCloudSyncFeedback(`Sync error: ${error}`);
+                          return;
+                        }
+                        const { addedCount } = mergeRegistrationsIntoParticipants(
+                          participants,
+                          records
+                        );
+                        if (addedCount > 0) {
+                          setParticipants(
+                            (prev) => mergeRegistrationsIntoParticipants(prev, records).merged
+                          );
+                        }
+                        setCloudSyncFeedback(
+                          addedCount > 0
+                            ? `Synced ${addedCount} new guest(s) from Supabase (${records.length} total).`
+                            : `All ${records.length} cloud registrations are already in the pool.`
+                        );
+                      }}
+                      className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${cloudSyncing ? 'animate-spin' : ''}`} />
+                      Sync Now
                     </button>
                   )}
                 </div>
