@@ -28,7 +28,7 @@ describe('raceEngine', () => {
     const sim = createRaceSimulation(roster, 2, 0.55);
     expect(sim.rappellers).toHaveLength(3);
     expect(sim.targetWinners).toBe(2);
-    expect(sim.countdown).toBeCloseTo(1.8);
+    expect(sim.countdown).toBeCloseTo(3.0);
     expect(sim.isComplete).toBe(false);
     expect(sim.rappellers.every((r) => r.altitude === 0)).toBe(true);
   });
@@ -36,7 +36,7 @@ describe('raceEngine', () => {
   it('transitions cleanly out of countdown and keeps floors within [0, ROOFTOP_FLOOR]', () => {
     const sim = createRaceSimulation(makeRappellers(5), 1, 0.8);
 
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 70; i++) {
       stepRaceSimulation(sim, 0.05);
     }
     expect(sim.countdown).toBe(0);

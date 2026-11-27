@@ -3,6 +3,7 @@ import {
   exportWinnersCsv,
   mergeImportedParticipants,
   parseParticipantsCsv,
+  parseSessionBackupJson,
 } from '../csv';
 import { Participant, PullResult } from '../../types/raffle';
 
@@ -69,7 +70,7 @@ describe('csv utilities', () => {
     expect(replaced.merged).toHaveLength(3);
   });
 
-  it('exports confirmed and absent winners in CSV format without prize columns', () => {
+  it('exports confirmed and absent winners in CSV format with Round column and no prize columns', () => {
     const history: PullResult[] = [
       {
         id: 'pull-1',
@@ -78,6 +79,7 @@ describe('csv utilities', () => {
         status: 'won',
         finishRank: 1,
         finishTimeSeconds: 12.34,
+        roundLabel: 'Grand Prize',
       },
       {
         id: 'pull-2',
@@ -89,8 +91,40 @@ describe('csv utilities', () => {
     ];
 
     const csv = exportWinnersCsv(history);
-    expect(csv).toContain('Timestamp,Rank,Winner,Department,Title,FinishTime,Status');
-    expect(csv).toContain('#1,Aria,Design,Architect,12.34s,Confirmed Winner');
-    expect(csv).toContain('#2,Bob,,,,Absent (Re-Raced)');
+    expect(csv).toContain('Timestamp,Round,Rank,Winner,Department,Title,FinishTime,Status');
+    expect(csv).toContain('Grand Prize,#1,Aria,Design,Architect,12.34s,Confirmed Winner');
+    expect(csv).toContain(',#2,Bob,,,,Absent (Re-Raced)');
+  });
+
+  it('validates and parses JSON session backups', () => {
+    const valid = parseSessionBackupJson(
+      JSON.stringify({
+        version: 1,
+        participants: [{ id: 'p1', name: 'Aria', weight: 2, active: true }],
+        history: [
+          {
+            id: 'pull-1',
+            participant: { id: 'p1', name: 'Aria', weight: 2, active: false },
+            timestamp: 1735100000000,
+            status: 'won',
+            finishRank: 1,
+            roundLabel: 'Round 1',
+          },
+        ],
+        settings: { raceDurationSeconds: 30, currentRoundLabel: 'Round 2' },
+      })
+    );
+    expect(valid.ok).toBe(true);
+    if (valid.ok) {
+      expect(valid.data.participants).toHaveLength(1);
+      expect(valid.data.history[0].roundLabel).toBe('Round 1');
+      expect(valid.data.settings?.raceDurationSeconds).toBe(30);
+    }
+
+    const malformed = parseSessionBackupJson('{bad json');
+    expect(malformed.ok).toBe(false);
+
+    const missingFields = parseSessionBackupJson(JSON.stringify({ participants: [] }));
+    expect(missingFields.ok).toBe(false);
   });
 });

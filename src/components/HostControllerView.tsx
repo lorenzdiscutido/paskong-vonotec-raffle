@@ -339,6 +339,23 @@ export const HostControllerView: React.FC = () => {
             <span className="text-xs text-slate-400">sec</span>
           </div>
 
+          <div className="flex items-center gap-2">
+            <label htmlFor="controller-round-label" className="text-xs text-slate-300 shrink-0">
+              Round Label:
+            </label>
+            <input
+              id="controller-round-label"
+              type="text"
+              maxLength={48}
+              value={settings.currentRoundLabel}
+              onChange={(e) =>
+                handleSetSettings((s) => ({ ...s, currentRoundLabel: e.target.value }))
+              }
+              placeholder="Optional (e.g. Grand Prize / Round 1)"
+              className="flex-1 max-w-xs px-3 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-amber-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+            />
+          </div>
+
           <div className="flex flex-wrap items-center gap-3 pt-1">
             <button
               type="button"
@@ -347,9 +364,9 @@ export const HostControllerView: React.FC = () => {
                 wishSound.playUiClick();
                 syncRef.current?.post({ type: 'CMD_START_RACE', count: clampedWinnerCount });
               }}
-              className="genshin-wish-btn px-6 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 cursor-pointer"
+              className="vonotec-festive-btn px-6 py-2.5 rounded-full text-sm font-bold flex items-center gap-2 cursor-pointer"
             >
-              <Flag className="w-4 h-4 text-amber-600" />
+              <Flag className="w-4 h-4 text-amber-200" />
               <span>
                 Start Rappelling Race ({clampedWinnerCount} Winner
                 {clampedWinnerCount > 1 ? 's' : ''})

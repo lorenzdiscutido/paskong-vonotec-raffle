@@ -16,6 +16,8 @@ export interface SyncStateSnapshot {
 export type SyncMessage =
   | { type: 'REQUEST_STATE' }
   | { type: 'STATE_SNAPSHOT'; payload: SyncStateSnapshot }
+  | { type: 'PROJECTOR_HEARTBEAT' }
+  | { type: 'PROJECTOR_RELEASE' }
   | { type: 'CMD_START_RACE'; count: number }
   | { type: 'CMD_SKIP_RACE' }
   | { type: 'CMD_ADVANCE_REVEAL' }

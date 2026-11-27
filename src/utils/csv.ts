@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import { Participant, PullResult } from '../types/raffle';
+import { Participant, PullResult, RaffleSettings } from '../types/raffle';
 import { createId } from './rng';
 
 const NAME_KEYS = ['name', 'fullname', 'full_name', 'participant', 'employee', 'guest', 'member', 'person'];
@@ -191,6 +191,7 @@ export function generateSampleCsv(): string {
 export function exportWinnersCsv(history: PullResult[]): string {
   const rows = history.map((item) => ({
     Timestamp: new Date(item.timestamp).toLocaleString(),
+    Round: item.roundLabel ?? '',
     Rank: `#${item.finishRank}`,
     Winner: item.participant.name,
     Department: item.participant.department ?? '',
@@ -201,6 +202,91 @@ export function exportWinnersCsv(history: PullResult[]): string {
   }));
 
   return Papa.unparse(rows);
+}
+
+export interface SessionBackupData {
+  participants: Participant[];
+  history: PullResult[];
+  settings?: Partial<RaffleSettings>;
+}
+
+export function parseSessionBackupJson(
+  text: string
+): { ok: true; data: SessionBackupData } | { ok: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, error: 'Invalid JSON backup file.' };
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    return { ok: false, error: 'Backup file must contain a JSON object.' };
+  }
+
+  const record = parsed as Record<string, unknown>;
+  if (!Array.isArray(record.participants) || !Array.isArray(record.history)) {
+    return { ok: false, error: 'Backup file is missing participants or history arrays.' };
+  }
+
+  const participants: Participant[] = [];
+  for (const item of record.participants) {
+    if (!item || typeof item !== 'object') continue;
+    const p = item as Record<string, unknown>;
+    if (typeof p.name !== 'string' || !p.name.trim()) continue;
+    const rawWeight = typeof p.weight === 'number' ? p.weight : Number(p.weight);
+    const weight =
+      Number.isFinite(rawWeight) && rawWeight > 0 ? Math.min(100, Math.round(rawWeight)) : 1;
+    participants.push({
+      id: typeof p.id === 'string' && p.id.trim() ? p.id : createId(),
+      name: p.name.trim(),
+      department: typeof p.department === 'string' && p.department.trim() ? p.department.trim() : undefined,
+      title: typeof p.title === 'string' && p.title.trim() ? p.title.trim() : undefined,
+      weight,
+      active: typeof p.active === 'boolean' ? p.active : true,
+    });
+  }
+
+  const history: PullResult[] = [];
+  for (const item of record.history) {
+    if (!item || typeof item !== 'object') continue;
+    const h = item as Record<string, unknown>;
+    if (!h.participant || typeof h.participant !== 'object') continue;
+    const hp = h.participant as Record<string, unknown>;
+    if (typeof hp.name !== 'string' || !hp.name.trim()) continue;
+    history.push({
+      id: typeof h.id === 'string' && h.id.trim() ? h.id : createId(),
+      participant: {
+        id: typeof hp.id === 'string' && hp.id.trim() ? hp.id : createId(),
+        name: hp.name.trim(),
+        department: typeof hp.department === 'string' ? hp.department : undefined,
+        title: typeof hp.title === 'string' ? hp.title : undefined,
+        weight: typeof hp.weight === 'number' && hp.weight > 0 ? hp.weight : 1,
+        active: typeof hp.active === 'boolean' ? hp.active : false,
+      },
+      timestamp: typeof h.timestamp === 'number' ? h.timestamp : Date.now(),
+      status: h.status === 'absent' ? 'absent' : 'won',
+      finishRank: typeof h.finishRank === 'number' ? h.finishRank : 1,
+      finishTimeSeconds: typeof h.finishTimeSeconds === 'number' ? h.finishTimeSeconds : undefined,
+      roundLabel: typeof h.roundLabel === 'string' && h.roundLabel.trim() ? h.roundLabel.trim() : undefined,
+    });
+  }
+
+  let settings: Partial<RaffleSettings> | undefined;
+  if (record.settings && typeof record.settings === 'object') {
+    const s = record.settings as Record<string, unknown>;
+    settings = {};
+    if (typeof s.eventTitle === 'string') settings.eventTitle = s.eventTitle;
+    if (typeof s.eventSubtitle === 'string') settings.eventSubtitle = s.eventSubtitle;
+    if (s.theme === 'christmas' || s.theme === 'celestial') settings.theme = s.theme;
+    if (typeof s.removeWinnerOnDraw === 'boolean') settings.removeWinnerOnDraw = s.removeWinnerOnDraw;
+    if (typeof s.dramaIntensity === 'number') settings.dramaIntensity = s.dramaIntensity;
+    if (typeof s.raceDurationSeconds === 'number') settings.raceDurationSeconds = s.raceDurationSeconds;
+    if (typeof s.soundEnabled === 'boolean') settings.soundEnabled = s.soundEnabled;
+    if (typeof s.currentRoundLabel === 'string') settings.currentRoundLabel = s.currentRoundLabel;
+  }
+
+  return { ok: true, data: { participants, history, settings } };
 }
 
 export function downloadTextFile(filename: string, content: string, mime = 'text/csv;charset=utf-8;') {

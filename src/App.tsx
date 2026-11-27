@@ -81,9 +81,17 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTab, setModalTab] = useState<'participants' | 'history' | 'settings'>('participants');
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
+  const [externalProjectorActive, setExternalProjectorActive] = useState(false);
 
   const syncRef = useRef<ReturnType<typeof createWishSyncChannel> | null>(null);
   const completedSeqRef = useRef(-1);
+  const externalProjectorSeenRef = useRef(0);
+  const reRaceSlotRef = useRef<{
+    replacePullId: string;
+    returnToSummary: boolean;
+    prevBatch: PullResult[];
+  } | null>(null);
+  const returnToSummaryAfterSingleRef = useRef(false);
 
   const persistWithQuotaGuard = useCallback(<T,>(key: string, value: T) => {
     const res = saveToStorage(key, value);
@@ -130,6 +138,11 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
     [participants]
   );
 
+  const hasWeightedEntries = useMemo(
+    () => eligibleParticipants.some((p) => p.weight > 1),
+    [eligibleParticipants]
+  );
+
   const openModalWithTab = useCallback(
     (tab: 'participants' | 'history' | 'settings') => {
       if (isProjector) return;
@@ -165,10 +178,13 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
 
       const winCount = Math.min(finishedRappellers.length, targetWinnerCount);
       if (winCount === 0) {
+        reRaceSlotRef.current = null;
+        returnToSummaryAfterSingleRef.current = false;
         setStage('idle');
         return;
       }
 
+      const trimmedRound = settings.currentRoundLabel.trim() || undefined;
       const results: PullResult[] = [];
       const winnerIds = new Set<string>();
 
@@ -185,6 +201,7 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
           status: 'won',
           finishRank: rappeller.finishRank ?? i + 1,
           finishTimeSeconds: rappeller.finishTime,
+          roundLabel: trimmedRound,
         });
       }
 
@@ -195,12 +212,42 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
       }
 
       setHistory((prev) => [...results, ...prev]);
+
+      const slot = reRaceSlotRef.current;
+      reRaceSlotRef.current = null;
+
+      if (slot && results.length === 1) {
+        const replaceIdx = slot.prevBatch.findIndex((item) => item.id === slot.replacePullId);
+        if (replaceIdx >= 0) {
+          const replacement: PullResult = {
+            ...results[0],
+            finishRank: slot.prevBatch[replaceIdx].finishRank,
+          };
+          const patchedBatch = slot.prevBatch.map((item, idx) =>
+            idx === replaceIdx ? replacement : item
+          );
+          setCurrentBatch(patchedBatch);
+          setRevealIndex(replaceIdx);
+          returnToSummaryAfterSingleRef.current = slot.returnToSummary;
+          wishSound.playSummitVictory(settings.theme === 'christmas');
+          setStage('reveal_single');
+          return;
+        }
+      }
+
+      returnToSummaryAfterSingleRef.current = false;
       setCurrentBatch(results);
       setRevealIndex(0);
       wishSound.playSummitVictory(settings.theme === 'christmas');
       setStage('reveal_single');
     },
-    [sequenceKey, targetWinnerCount, settings.removeWinnerOnDraw, settings.theme]
+    [
+      sequenceKey,
+      targetWinnerCount,
+      settings.removeWinnerOnDraw,
+      settings.theme,
+      settings.currentRoundLabel,
+    ]
   );
 
   const handleSkipRace = useCallback(() => {
@@ -211,6 +258,11 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
 
   const handleAdvanceSingle = useCallback(() => {
     wishSound.playUiClick();
+    if (returnToSummaryAfterSingleRef.current) {
+      returnToSummaryAfterSingleRef.current = false;
+      setStage('summary_multi');
+      return;
+    }
     if (revealIndex + 1 < currentBatch.length) {
       setRevealIndex((i) => i + 1);
     } else if (currentBatch.length > 1) {
@@ -222,6 +274,7 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
 
   const handleSkipRevealToEnd = useCallback(() => {
     wishSound.playUiClick();
+    returnToSummaryAfterSingleRef.current = false;
     if (currentBatch.length > 1) {
       setStage('summary_multi');
     } else {
@@ -259,20 +312,31 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
 
       wishSound.playUiClick();
 
+      const updatedBatch = currentBatch.map((item) =>
+        item.id === pullId ? { ...item, status: 'absent' as const } : item
+      );
       if (target.status !== 'absent') {
-        setCurrentBatch((prev) =>
-          prev.map((item) => (item.id === pullId ? { ...item, status: 'absent' } : item))
-        );
+        setCurrentBatch(updatedBatch);
         setHistory((prev) =>
           prev.map((item) => (item.id === pullId ? { ...item, status: 'absent' } : item))
         );
       }
 
+      reRaceSlotRef.current =
+        updatedBatch.length > 1
+          ? {
+              replacePullId: pullId,
+              returnToSummary: stage === 'summary_multi',
+              prevBatch: updatedBatch,
+            }
+          : null;
+      returnToSummaryAfterSingleRef.current = false;
+
       setTargetWinnerCount(1);
       setSequenceKey((k) => k + 1);
       setStage('racing');
     },
-    [currentBatch, eligibleParticipants.length, isProjector, openModalWithTab]
+    [currentBatch, stage, eligibleParticipants.length, isProjector, openModalWithTab]
   );
 
   // Escape skips live race (Spacebar intentionally excluded to prevent accidental skips)
@@ -326,6 +390,9 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
   });
 
   const postSnapshot = useCallback(() => {
+    if (!isProjector && Date.now() - externalProjectorSeenRef.current < 5000) {
+      return;
+    }
     const cur = latestRef.current;
     syncRef.current?.post({
       type: 'STATE_SNAPSHOT',
@@ -340,36 +407,55 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
         settings: cur.settings,
       },
     });
-  }, []);
+  }, [isProjector]);
 
   useEffect(() => {
     const channel = createWishSyncChannel((msg: SyncMessage) => {
+      if (msg.type === 'PROJECTOR_HEARTBEAT') {
+        if (!isProjector) {
+          externalProjectorSeenRef.current = Date.now();
+          setExternalProjectorActive(true);
+        }
+        return;
+      }
+      if (msg.type === 'PROJECTOR_RELEASE') {
+        if (!isProjector) {
+          externalProjectorSeenRef.current = 0;
+          setExternalProjectorActive(false);
+        }
+        return;
+      }
+
+      const yieldedToProjector =
+        !isProjector && Date.now() - externalProjectorSeenRef.current < 5000;
       const cur = latestRef.current;
       switch (msg.type) {
         case 'REQUEST_STATE':
-          postSnapshot();
+          if (!yieldedToProjector) postSnapshot();
           break;
         case 'CMD_START_RACE':
-          cur.triggerRace(msg.count);
+          if (!yieldedToProjector) cur.triggerRace(msg.count);
           break;
         case 'CMD_SKIP_RACE':
-          cur.handleSkipRace();
+          if (!yieldedToProjector) cur.handleSkipRace();
           break;
         case 'CMD_ADVANCE_REVEAL':
-          cur.handleAdvanceSingle();
+          if (!yieldedToProjector) cur.handleAdvanceSingle();
           break;
         case 'CMD_SKIP_TO_END':
-          cur.handleSkipRevealToEnd();
+          if (!yieldedToProjector) cur.handleSkipRevealToEnd();
           break;
         case 'CMD_CLOSE_SUMMARY':
-          wishSound.playUiClick();
-          setStage('idle');
+          if (!yieldedToProjector) {
+            wishSound.playUiClick();
+            setStage('idle');
+          }
           break;
         case 'CMD_MARK_ABSENT':
-          cur.handleMarkAbsent(msg.pullId);
+          if (!yieldedToProjector) cur.handleMarkAbsent(msg.pullId);
           break;
         case 'CMD_RERACE_ABSENT':
-          cur.handleReRaceAbsent(msg.pullId);
+          if (!yieldedToProjector) cur.handleReRaceAbsent(msg.pullId);
           break;
         case 'CMD_UPDATE_DATA':
           if (msg.participants) setParticipants(msg.participants);
@@ -380,11 +466,42 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
     });
 
     syncRef.current = channel;
+
+    let heartbeatId: number | undefined;
+    let expiryId: number | undefined;
+    const handleBeforeUnload = () => {
+      if (isProjector) channel.post({ type: 'PROJECTOR_RELEASE' });
+    };
+
+    if (isProjector) {
+      channel.post({ type: 'PROJECTOR_HEARTBEAT' });
+      heartbeatId = window.setInterval(() => {
+        channel.post({ type: 'PROJECTOR_HEARTBEAT' });
+      }, 2000);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+    } else {
+      expiryId = window.setInterval(() => {
+        if (
+          externalProjectorSeenRef.current > 0 &&
+          Date.now() - externalProjectorSeenRef.current >= 5000
+        ) {
+          externalProjectorSeenRef.current = 0;
+          setExternalProjectorActive(false);
+        }
+      }, 2500);
+    }
+
     return () => {
+      if (heartbeatId !== undefined) window.clearInterval(heartbeatId);
+      if (expiryId !== undefined) window.clearInterval(expiryId);
+      if (isProjector) {
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        channel.post({ type: 'PROJECTOR_RELEASE' });
+      }
       channel.close();
       syncRef.current = null;
     };
-  }, [postSnapshot]);
+  }, [postSnapshot, isProjector]);
 
   useEffect(() => {
     postSnapshot();
@@ -436,6 +553,7 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
         targetWinnerCount={targetWinnerCount}
         dramaIntensity={settings.dramaIntensity}
         raceDurationSeconds={settings.raceDurationSeconds}
+        roundLabel={settings.currentRoundLabel}
         sequenceKey={sequenceKey}
         skipNonce={skipNonce}
         onRaceComplete={handleRaceComplete}
@@ -535,6 +653,12 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
           {alertBanner && (
             <div className="mx-auto px-5 py-1.5 rounded-full bg-rose-950/90 border border-rose-400/50 text-rose-100 text-xs font-medium shadow-lg">
               {alertBanner}
+            </div>
+          )}
+
+          {!isProjector && externalProjectorActive && (
+            <div className="mx-auto px-5 py-1.5 rounded-full bg-sky-950/90 border border-sky-400/50 text-sky-100 text-xs font-medium shadow-lg">
+              Clean Projector window active — remote race commands route to the Projector tab.
             </div>
           )}
 
@@ -642,6 +766,37 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
                   <span className="text-xs text-slate-300 font-semibold">sec</span>
                 </div>
               </div>
+
+              {/* Optional Round Label & Weighted Entries Notice */}
+              {!isProjector && (
+                <div className="flex flex-col items-center gap-2">
+                  <div className="flex items-center justify-center gap-2 w-full max-w-sm">
+                    <label htmlFor="round-label-input" className="text-xs font-semibold text-slate-300 shrink-0">
+                      Round:
+                    </label>
+                    <input
+                      id="round-label-input"
+                      type="text"
+                      maxLength={48}
+                      value={settings.currentRoundLabel}
+                      onChange={(e) =>
+                        setSettings((s) => ({ ...s, currentRoundLabel: e.target.value }))
+                      }
+                      placeholder="Optional round label (e.g. Minor Prize 1)"
+                      className="flex-1 px-3 py-1.5 rounded-full bg-slate-950/90 border border-slate-700 text-xs text-amber-100 placeholder:text-slate-500 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+                  {hasWeightedEntries && (
+                    <button
+                      type="button"
+                      onClick={() => openModalWithTab('participants')}
+                      className="px-3 py-1 rounded-full bg-amber-500/15 border border-amber-400/45 text-[11px] font-semibold text-amber-200 hover:bg-amber-500/25 cursor-pointer transition"
+                    >
+                      Weighted entries active — some rappellers have &gt;1 ticket (manage)
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Primary CTA Buttons */}
               <div className="flex flex-wrap items-center justify-center gap-3 pt-1">

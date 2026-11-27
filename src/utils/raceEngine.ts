@@ -106,7 +106,7 @@ export function createRaceSimulation(
     dramaIntensity: clampedDrama,
     targetDurationSeconds: clampedDuration,
     elapsed: 0,
-    countdown: 1.8,
+    countdown: 3.0,
     isPhotoFinish: false,
     isComplete: active.length === 0,
     finishedIds: [],

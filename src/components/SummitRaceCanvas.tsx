@@ -20,6 +20,7 @@ interface SummitRaceCanvasProps {
   targetWinnerCount: number;
   dramaIntensity: number;
   raceDurationSeconds: number;
+  roundLabel?: string;
   sequenceKey: number;
   skipNonce: number;
   onRaceComplete: (winners: RappellerState[]) => void;
@@ -105,6 +106,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
   targetWinnerCount,
   dramaIntensity,
   raceDurationSeconds,
+  roundLabel,
   sequenceKey,
   skipNonce,
   onRaceComplete,
@@ -150,8 +152,9 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
   const cameraAltRef = useRef(18);
   const completeHoldRef = useRef(0);
   const completedCalledRef = useRef(false);
-  const lastCountdownCeilRef = useRef(2);
+  const lastCountdownCeilRef = useRef(3);
   const lastSfxTimeRef = useRef(0);
+  const lastHeartbeatTimeRef = useRef(0);
   const activeSequenceRef = useRef(-1);
   const prevSkipNonceRef = useRef(skipNonce);
 
@@ -182,6 +185,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
     completedCalledRef.current = false;
     lastCountdownCeilRef.current = Math.ceil(sim.countdown);
     lastSfxTimeRef.current = 0;
+    lastHeartbeatTimeRef.current = 0;
 
     wishSound.playCountdownTick(false);
     propsRef.current.onCaptionChange?.('Rappellers strapped in at Ground Floor...');
@@ -443,15 +447,26 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
       ctx.restore();
     };
 
+    const MAX_PLACED_LABELS = 32;
+    const placedLabelBoxes = Array.from({ length: MAX_PLACED_LABELS }, () => ({
+      x1: 0,
+      y1: 0,
+      x2: 0,
+      y2: 0,
+    }));
+
     const drawRappellerLabel = (
       x: number,
       y: number,
       rappeller: RappellerState,
       rank: number,
-      compact: boolean
-    ) => {
-      const clampedX = Math.max(54, Math.min(cssWidth - 54, x));
-      const labelY = y - 24;
+      compact: boolean,
+      bldgLeft: number,
+      bldgRight: number,
+      placedCount: number
+    ): number => {
+      const clampedX = Math.max(bldgLeft + 44, Math.min(bldgRight - 44, x));
+      let labelY = y - 24;
 
       ctx.save();
       if (compact) {
@@ -470,7 +485,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
         ctx.textBaseline = 'middle';
         ctx.fillText(tag, clampedX, labelY - 2.5);
         ctx.restore();
-        return;
+        return placedCount;
       }
 
       ctx.font = '700 11.5px "Plus Jakarta Sans", sans-serif';
@@ -483,6 +498,35 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
       const textWidth = ctx.measureText(fullText).width;
       const pillW = Math.max(58, textWidth + 16);
       const pillH = 20;
+      const hasEvt = Boolean(rappeller.eventLabel && rappeller.state !== 'rappelling');
+      const totalH = hasEvt ? pillH + 16 : pillH;
+
+      const checkedCount = Math.min(placedCount, MAX_PLACED_LABELS);
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const bx1 = clampedX - pillW / 2 - 2;
+        const bx2 = clampedX + pillW / 2 + 2;
+        const by1 = labelY - totalH - 2;
+        const by2 = labelY + 2;
+        let overlaps = false;
+        for (let i = 0; i < checkedCount; i++) {
+          const box = placedLabelBoxes[i];
+          if (bx1 < box.x2 && bx2 > box.x1 && by1 < box.y2 && by2 > box.y1) {
+            overlaps = true;
+            break;
+          }
+        }
+        if (!overlaps) break;
+        labelY -= 22;
+      }
+
+      if (placedCount < MAX_PLACED_LABELS) {
+        const slot = placedLabelBoxes[placedCount];
+        slot.x1 = clampedX - pillW / 2 - 2;
+        slot.x2 = clampedX + pillW / 2 + 2;
+        slot.y1 = labelY - totalH - 2;
+        slot.y2 = labelY + 2;
+        placedCount++;
+      }
 
       ctx.fillStyle =
         rank === 1
@@ -513,7 +557,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
       ctx.textBaseline = 'middle';
       ctx.fillText(fullText, clampedX, labelY - pillH / 2 + 0.5);
 
-      if (rappeller.eventLabel && rappeller.state !== 'rappelling') {
+      if (hasEvt) {
         ctx.font = '800 9.5px "Plus Jakarta Sans", sans-serif';
         const evtText = rappeller.eventLabel;
         const ew = ctx.measureText(evtText).width + 10;
@@ -532,6 +576,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
       }
 
       ctx.restore();
+      return placedCount;
     };
 
     const renderFrame = (now: number) => {
@@ -569,8 +614,16 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
             wishSound.playCountdownTick(true);
             cur.onCaptionChange?.('Rappellers racing up the 100-story Skyscraper!');
           } else if (sim.lastEventSfx === 'photo') {
+            lastHeartbeatTimeRef.current = now;
             wishSound.playPhotoFinishHeartbeat();
             cur.onCaptionChange?.('PHOTO FINISH AT THE ROOFTOP!');
+          } else if (
+            sim.isPhotoFinish &&
+            sim.countdown <= 0 &&
+            now - lastHeartbeatTimeRef.current > 850
+          ) {
+            lastHeartbeatTimeRef.current = now;
+            wishSound.playPhotoFinishHeartbeat();
           } else if (
             (sim.lastEventSfx === 'boost' || sim.lastEventSfx === 'slip') &&
             now - lastSfxTimeRef.current > 360
@@ -729,6 +782,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
       const bldgLeft = bounds.left;
       const bldgRight = bounds.right;
       const bldgWidth = bounds.width;
+      const bldgCenterX = bldgLeft + bldgWidth * 0.5;
       const rooftopY = floorToY(ROOFTOP_FLOOR, camAlt, cssHeight);
       const groundY = floorToY(0, camAlt, cssHeight);
       const bldgTopY = Math.max(-40, rooftopY);
@@ -830,7 +884,7 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
           ctx.font = '800 11px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = isXmas ? '#fde047' : '#7dd3fc';
           ctx.textAlign = 'center';
-          ctx.fillText('VONOTEC TOWER', cssWidth * 0.5, rooftopY - 3.5);
+          ctx.fillText('VONOTEC TOWER', bldgCenterX, rooftopY - 3.5);
 
           // Corner communication antennas with blinking red beacons
           const beaconAlpha = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(elapsedTotal * 5));
@@ -861,12 +915,12 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
             sim?.isComplete
               ? 'A CHRISTMAS OF GRATITUDE — ROOFTOP CONQUERED'
               : 'STANDING TALL TOGETHER — 100F ROOFTOP',
-            cssWidth * 0.5,
+            bldgCenterX,
             rooftopY - 26
           );
 
           // Center Rooftop Prop (Real SVG Christmas Tree or Illuminated Spire)
-          const propX = cssWidth * 0.5;
+          const propX = bldgCenterX;
           const propY = rooftopY - 42;
           if (isXmas && treeImg.complete && treeImg.naturalWidth > 0) {
             ctx.drawImage(treeImg, propX - 24, propY - 58, 48, 58);
@@ -971,12 +1025,33 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
           if (ry < -60 || ry > cssHeight + 60) continue;
 
           drawRappellerFigure(rx, ry, r, rank === 1, elapsedTotal, crowdScale);
+        }
 
+        // Draw labels in rank order so top leaders receive priority non-overlapping placement
+        let placedCount = 0;
+        for (let idx = 0; idx < leaderboard.length; idx++) {
+          const r = leaderboard[idx];
+          const rank = idx + 1;
           const showFullLabel =
-            totalRacers <= 22 || rank <= 16 || r.state === 'boost' || r.state === 'slip';
-          if (showFullLabel || rank <= 32) {
-            drawRappellerLabel(rx, ry, r, rank, !showFullLabel);
-          }
+            totalRacers <= 25 || rank <= 12 || r.state === 'finished';
+          const showCompactLabel = totalRacers > 25 && !showFullLabel && rank <= 24;
+          if (!showFullLabel && !showCompactLabel) continue;
+
+          const swayOffset = Math.sin(elapsedTotal * 8 + r.laneIndex) * r.ropeSway * 10;
+          const rx = bldgLeft + 24 + r.laneX * (bldgWidth - 48) + swayOffset;
+          const ry = floorToY(r.altitude, camAlt, cssHeight);
+          if (ry < -60 || ry > cssHeight + 60) continue;
+
+          placedCount = drawRappellerLabel(
+            rx,
+            ry,
+            r,
+            rank,
+            !showFullLabel,
+            bldgLeft,
+            bldgRight,
+            placedCount
+          );
         }
 
         // Right-Edge Canvas Skyscraper Elevation Tracker (placed cleanly in right sky margin)
@@ -1092,6 +1167,11 @@ export const SummitRaceCanvas: React.FC<SummitRaceCanvasProps> = ({
                   </span>
                 </div>
               </div>
+              {roundLabel?.trim() && (
+                <span className="hidden sm:inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-400/15 border border-amber-300/45 text-[11px] font-bold text-amber-200 truncate max-w-[180px]">
+                  {roundLabel.trim()}
+                </span>
+              )}
             </div>
 
             {hud.events[0] && (

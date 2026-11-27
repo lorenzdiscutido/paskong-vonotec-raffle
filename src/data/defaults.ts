@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS: RaffleSettings = {
   dramaIntensity: 0.55,
   raceDurationSeconds: 20,
   soundEnabled: true,
+  currentRoundLabel: '',
 };
 
 export const THEME_CONFIG: Record<
