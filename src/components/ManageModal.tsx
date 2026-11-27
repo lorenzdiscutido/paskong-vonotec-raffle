@@ -28,6 +28,7 @@ import {
 } from '../utils/csv';
 import { createId } from '../utils/rng';
 import { DEFAULT_SETTINGS, THEME_CONFIG } from '../data/defaults';
+import { ClimbDurationInput } from './ClimbDurationInput';
 
 interface ManageModalProps {
   isOpen: boolean;
@@ -1092,16 +1093,22 @@ export const ManageModal: React.FC<ManageModalProps> = ({
                 </label>
 
                 <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between items-center text-xs">
                     <span className="text-slate-200 font-medium">
                       Climb Duration (Seconds to 100F)
                     </span>
-                    <span className="text-amber-300 font-bold">{settings.raceDurationSeconds}s</span>
+                    <ClimbDurationInput
+                      value={settings.raceDurationSeconds}
+                      min={5}
+                      max={300}
+                      onChange={(secs) => setSettings((s) => ({ ...s, raceDurationSeconds: secs }))}
+                      inputClassName="w-14 px-2 py-0.5 rounded bg-slate-950 border border-slate-700 text-xs text-amber-200 font-bold text-center focus:outline-none focus:border-amber-400"
+                    />
                   </div>
                   <input
                     type="range"
                     min={5}
-                    max={120}
+                    max={300}
                     step={5}
                     value={settings.raceDurationSeconds}
                     onChange={(e) =>

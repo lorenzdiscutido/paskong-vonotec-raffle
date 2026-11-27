@@ -69,7 +69,13 @@ describe('raceEngine', () => {
     const lowClamp = createRaceSimulation(makeRappellers(4), 1, 0.55, 1);
     const highClamp = createRaceSimulation(makeRappellers(4), 1, 0.55, 999);
     expect(lowClamp.targetDurationSeconds).toBe(5);
-    expect(highClamp.targetDurationSeconds).toBe(120);
+    expect(highClamp.targetDurationSeconds).toBe(300);
+
+    const sim60 = createRaceSimulation(makeRappellers(12), 1, 0.55, 60);
+    const winners60 = fastForwardRace(sim60);
+    expect(winners60).toHaveLength(1);
+    expect(winners60[0].finishTime).toBeGreaterThanOrEqual(52);
+    expect(winners60[0].finishTime).toBeLessThanOrEqual(68);
 
     const sim30 = createRaceSimulation(makeRappellers(12), 1, 0.55, 30);
     const winners30 = fastForwardRace(sim30);

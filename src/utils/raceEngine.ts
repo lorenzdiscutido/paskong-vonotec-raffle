@@ -66,7 +66,7 @@ export function createRaceSimulation(
   const active = participants.filter((p) => p.active && p.weight > 0);
   const clampedTarget = Math.max(1, Math.min(targetWinners, Math.max(1, active.length)));
   const clampedDrama = Math.max(0, Math.min(1, dramaIntensity));
-  const clampedDuration = Math.max(5, Math.min(120, Math.round(targetDurationSeconds) || 20));
+  const clampedDuration = Math.max(5, Math.min(300, Math.round(targetDurationSeconds) || 20));
 
   // Fisher-Yates shuffle so rope lane placement is unpredictable each race
   const laneOrder = active.map((_, idx) => idx);

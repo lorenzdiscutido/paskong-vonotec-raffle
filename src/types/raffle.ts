@@ -25,7 +25,7 @@ export interface RaffleSettings {
   theme: ThemeId;
   removeWinnerOnDraw: boolean;
   dramaIntensity: number; // 0 to 1: controls surge/slip frequency
-  raceDurationSeconds: number; // 5 to 120: target climb duration to 100F rooftop
+  raceDurationSeconds: number; // 5 to 300: target climb duration to 100F rooftop
   soundEnabled: boolean;
   currentRoundLabel: string;
 }

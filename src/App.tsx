@@ -22,6 +22,7 @@ import { SummitRaceCanvas } from './components/SummitRaceCanvas';
 import { SplashRevealOverlay } from './components/SplashRevealOverlay';
 import { ManageModal } from './components/ManageModal';
 import { HostControllerView } from './components/HostControllerView';
+import { ClimbDurationInput } from './components/ClimbDurationInput';
 
 function getViewMode(): 'controller' | 'projector' | null {
   if (typeof window === 'undefined') return null;
@@ -745,26 +746,13 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
                     {secs}s
                   </button>
                 ))}
-                <div className="inline-flex items-center gap-1">
-                  <input
-                    type="number"
-                    aria-label="Custom climb duration in seconds"
-                    min={5}
-                    max={120}
-                    value={settings.raceDurationSeconds}
-                    onChange={(e) =>
-                      setSettings((s) => ({
-                        ...s,
-                        raceDurationSeconds: Math.max(
-                          5,
-                          Math.min(120, Math.round(Number(e.target.value) || 20))
-                        ),
-                      }))
-                    }
-                    className="w-16 px-2.5 py-1.5 rounded-full bg-slate-950 border border-slate-600 text-xs text-center text-amber-200 font-bold focus:outline-none focus:border-amber-400"
-                  />
-                  <span className="text-xs text-slate-300 font-semibold">sec</span>
-                </div>
+                <ClimbDurationInput
+                  value={settings.raceDurationSeconds}
+                  min={5}
+                  max={300}
+                  onChange={(secs) => setSettings((s) => ({ ...s, raceDurationSeconds: secs }))}
+                  inputClassName="w-16 px-2.5 py-1.5 rounded-full bg-slate-950 border border-slate-600 text-xs text-center text-amber-200 font-bold focus:outline-none focus:border-amber-400"
+                />
               </div>
 
               {/* Optional Round Label & Weighted Entries Notice */}

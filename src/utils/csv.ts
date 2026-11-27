@@ -281,7 +281,7 @@ export function parseSessionBackupJson(
     if (s.theme === 'christmas' || s.theme === 'celestial') settings.theme = s.theme;
     if (typeof s.removeWinnerOnDraw === 'boolean') settings.removeWinnerOnDraw = s.removeWinnerOnDraw;
     if (typeof s.dramaIntensity === 'number') settings.dramaIntensity = s.dramaIntensity;
-    if (typeof s.raceDurationSeconds === 'number') settings.raceDurationSeconds = s.raceDurationSeconds;
+    if (typeof s.raceDurationSeconds === 'number') settings.raceDurationSeconds = Math.max(5, Math.min(300, s.raceDurationSeconds));
     if (typeof s.soundEnabled === 'boolean') settings.soundEnabled = s.soundEnabled;
     if (typeof s.currentRoundLabel === 'string') settings.currentRoundLabel = s.currentRoundLabel;
   }

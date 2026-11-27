@@ -18,6 +18,7 @@ import { STORAGE_KEYS, loadFromStorage, saveToStorage } from '../utils/storage';
 import { SyncMessage, SyncStateSnapshot, createWishSyncChannel } from '../utils/syncChannel';
 import { wishSound } from '../utils/soundEngine';
 import { ManageModal } from './ManageModal';
+import { ClimbDurationInput } from './ClimbDurationInput';
 
 export const HostControllerView: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>(() =>
@@ -319,24 +320,14 @@ export const HostControllerView: React.FC = () => {
                 {secs}s
               </button>
             ))}
-            <input
-              type="number"
-              aria-label="Custom climb duration in seconds"
-              min={5}
-              max={120}
+            <ClimbDurationInput
               value={settings.raceDurationSeconds}
-              onChange={(e) =>
-                handleSetSettings((s) => ({
-                  ...s,
-                  raceDurationSeconds: Math.max(
-                    5,
-                    Math.min(120, Math.round(Number(e.target.value) || 20))
-                  ),
-                }))
-              }
-              className="w-16 px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-amber-200 font-bold"
+              min={5}
+              max={300}
+              onChange={(secs) => handleSetSettings((s) => ({ ...s, raceDurationSeconds: secs }))}
+              inputClassName="w-16 px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs text-amber-200 font-bold text-center focus:outline-none focus:border-amber-400"
+              unitClassName="text-xs text-slate-400 font-semibold select-none"
             />
-            <span className="text-xs text-slate-400">sec</span>
           </div>
 
           <div className="flex items-center gap-2">
