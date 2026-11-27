@@ -1259,38 +1259,63 @@ export const ManageModal: React.FC<ManageModalProps> = ({
                     <ExternalLink className="w-3 h-3" />
                   </a>
                   {isSupabaseConfigured() && (
-                    <button
-                      type="button"
-                      disabled={cloudSyncing}
-                      onClick={async () => {
-                        onPlayClick();
-                        setCloudSyncing(true);
-                        const { records, error } = await fetchRegistrations();
-                        setCloudSyncing(false);
-                        if (error) {
-                          setCloudSyncFeedback(`Sync error: ${error}`);
-                          return;
-                        }
-                        const { addedCount } = mergeRegistrationsIntoParticipants(
-                          participants,
-                          records
-                        );
-                        if (addedCount > 0) {
-                          setParticipants(
-                            (prev) => mergeRegistrationsIntoParticipants(prev, records).merged
+                    <>
+                      <button
+                        type="button"
+                        disabled={cloudSyncing}
+                        onClick={async () => {
+                          onPlayClick();
+                          setCloudSyncing(true);
+                          const { records, error } = await fetchRegistrations();
+                          setCloudSyncing(false);
+                          if (error) {
+                            setCloudSyncFeedback(`Sync error: ${error}`);
+                            return;
+                          }
+                          const { addedCount, removedCount } = mergeRegistrationsIntoParticipants(
+                            participants,
+                            records
                           );
-                        }
-                        setCloudSyncFeedback(
-                          addedCount > 0
-                            ? `Synced ${addedCount} new guest(s) from Supabase (${records.length} total).`
-                            : `All ${records.length} cloud registrations are already in the pool.`
-                        );
-                      }}
-                      className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${cloudSyncing ? 'animate-spin' : ''}`} />
-                      Sync Now
-                    </button>
+                          if (addedCount > 0 || removedCount > 0) {
+                            setParticipants(
+                              (prev) => mergeRegistrationsIntoParticipants(prev, records).merged
+                            );
+                          }
+                          setCloudSyncFeedback(
+                            addedCount > 0 || removedCount > 0
+                              ? `Synced (+${addedCount} added, -${removedCount} removed · ${records.length} cloud total).`
+                              : `All ${records.length} cloud registrations are already in the pool.`
+                          );
+                        }}
+                        className="px-3 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${cloudSyncing ? 'animate-spin' : ''}`} />
+                        Sync Now
+                      </button>
+                      <button
+                        type="button"
+                        disabled={cloudSyncing}
+                        onClick={async () => {
+                          onPlayClick();
+                          setCloudSyncing(true);
+                          const { records, error } = await fetchRegistrations();
+                          setCloudSyncing(false);
+                          if (error) {
+                            setCloudSyncFeedback(`Sync error: ${error}`);
+                            return;
+                          }
+                          const onlyCloud = mergeRegistrationsIntoParticipants([], records).merged;
+                          setParticipants(onlyCloud);
+                          setCloudSyncFeedback(
+                            `Loaded ${onlyCloud.length} registered guest(s) only (demo roster cleared).`
+                          );
+                        }}
+                        className="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-emerald-500/40 text-emerald-200 text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition disabled:opacity-50"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Use Registered Only
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

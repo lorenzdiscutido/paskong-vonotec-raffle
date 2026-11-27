@@ -19,6 +19,12 @@ import { SyncMessage, SyncStateSnapshot, createWishSyncChannel } from '../utils/
 import { wishSound } from '../utils/soundEngine';
 import { ManageModal } from './ManageModal';
 import { ClimbDurationInput } from './ClimbDurationInput';
+import { isSupabaseConfigured } from '../utils/supabaseClient';
+import {
+  fetchRegistrations,
+  mergeRegistrationsIntoParticipants,
+  subscribeToRegistrations,
+} from '../utils/registrationService';
 
 export const HostControllerView: React.FC = () => {
   const [participants, setParticipants] = useState<Participant[]>(() =>
@@ -94,6 +100,44 @@ export const HostControllerView: React.FC = () => {
       syncRef.current = null;
     };
   }, []);
+
+  // Auto-sync live Supabase venue registrations while idle
+  useEffect(() => {
+    if (!isSupabaseConfigured() || stage !== 'idle') return;
+    let cancelled = false;
+
+    const syncCloud = async () => {
+      const { records, error } = await fetchRegistrations();
+      if (cancelled || error) return;
+      const { merged, addedCount, removedCount } = mergeRegistrationsIntoParticipants(
+        stateRef.current.participants,
+        records
+      );
+      if (addedCount > 0 || removedCount > 0) {
+        stateRef.current = { ...stateRef.current, participants: merged };
+        setParticipants(merged);
+        saveToStorage(STORAGE_KEYS.participants, merged);
+        syncRef.current?.post({
+          type: 'CMD_UPDATE_DATA',
+          participants: merged,
+        });
+      }
+    };
+
+    void syncCloud();
+    const unsubscribe = subscribeToRegistrations(() => {
+      void syncCloud();
+    });
+    const pollTimer = window.setInterval(() => {
+      void syncCloud();
+    }, 10000);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.clearInterval(pollTimer);
+    };
+  }, [stage]);
 
   const broadcastUpdate = (patch: {
     participants?: Participant[];

@@ -16,6 +16,10 @@ create unique index if not exists registrations_unique_name_idx
 -- Enable Row Level Security
 alter table public.registrations enable row level security;
 
+-- Grant table access to anon & authenticated roles
+grant usage on schema public to anon, authenticated;
+grant select, insert, delete on table public.registrations to anon, authenticated;
+
 -- Allow guests, kiosks, and the stage app to read, insert, and manage event registrations
 drop policy if exists "Allow public read registrations" on public.registrations;
 create policy "Allow public read registrations"

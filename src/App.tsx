@@ -150,15 +150,18 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
 
   // Auto-sync live Supabase venue registrations into the active pool while idle
   useEffect(() => {
-    if (isProjector || !isSupabaseConfigured() || stage !== 'idle') return;
+    if (!isSupabaseConfigured() || stage !== 'idle') return;
     let cancelled = false;
 
     const syncCloud = async () => {
-      const { records } = await fetchRegistrations();
-      if (cancelled || records.length === 0) return;
+      const { records, error } = await fetchRegistrations();
+      if (cancelled || error) return;
       setParticipants((prev) => {
-        const { merged, addedCount } = mergeRegistrationsIntoParticipants(prev, records);
-        return addedCount > 0 ? merged : prev;
+        const { merged, addedCount, removedCount } = mergeRegistrationsIntoParticipants(
+          prev,
+          records
+        );
+        return addedCount > 0 || removedCount > 0 ? merged : prev;
       });
     };
 
@@ -166,16 +169,25 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
     const unsubscribe = subscribeToRegistrations(() => {
       void syncCloud();
     });
+    const pollTimer = window.setInterval(() => {
+      void syncCloud();
+    }, 10000);
 
     return () => {
       cancelled = true;
       unsubscribe();
+      window.clearInterval(pollTimer);
     };
-  }, [isProjector, stage]);
+  }, [stage]);
 
   const eligibleParticipants = useMemo(
     () => participants.filter((p) => p.active && p.weight > 0),
     [participants]
+  );
+
+  const cloudRegisteredCount = useMemo(
+    () => eligibleParticipants.filter((p) => p.id.startsWith('reg_')).length,
+    [eligibleParticipants]
   );
 
   const hasWeightedEntries = useMemo(
@@ -628,6 +640,12 @@ function MainStageApp({ isProjector }: { isProjector: boolean }) {
               >
                 <Users className="w-4 h-4 text-sky-300" />
                 <span>{eligibleParticipants.length} Rappellers</span>
+                {cloudRegisteredCount > 0 && (
+                  <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    {cloudRegisteredCount} Live
+                  </span>
+                )}
                 {!isProjector && (
                   <span className="w-5 h-5 rounded-full bg-[#ede5d5] text-slate-900 flex items-center justify-center">
                     <Plus className="w-3.5 h-3.5 stroke-[2.8]" />

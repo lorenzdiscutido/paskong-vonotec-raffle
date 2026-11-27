@@ -55,8 +55,12 @@ describe('registrationService', () => {
       },
     ];
 
-    const { merged, addedCount } = mergeRegistrationsIntoParticipants(existing, cloudRecords);
+    const { merged, addedCount, removedCount } = mergeRegistrationsIntoParticipants(
+      existing,
+      cloudRecords
+    );
     expect(addedCount).toBe(1);
+    expect(removedCount).toBe(0);
     expect(merged).toHaveLength(3);
     expect(merged[0].active).toBe(false);
     expect(merged[2]).toEqual({
@@ -65,5 +69,16 @@ describe('registrationService', () => {
       weight: 1,
       active: true,
     });
+  });
+
+  it('removes stale reg_ entries deleted from Supabase while keeping manual participants', () => {
+    const existing: Participant[] = [
+      { id: 'p-manual', name: 'Manual Guest', weight: 1, active: true },
+      { id: 'reg_deleted-1', name: 'Deleted Guest', weight: 1, active: true },
+    ];
+    const { merged, removedCount } = mergeRegistrationsIntoParticipants(existing, []);
+    expect(removedCount).toBe(1);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].id).toBe('p-manual');
   });
 });

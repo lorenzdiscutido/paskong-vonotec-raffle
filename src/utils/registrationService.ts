@@ -136,15 +136,28 @@ export function subscribeToRegistrations(onChange: () => void): () => void {
 /**
  * Merges cloud registrations into the local Participant pool without
  * duplicating existing entries or overwriting active/won/absent status.
+ * Also removes stale `reg_*` entries that were deleted from Supabase.
  */
 export function mergeRegistrationsIntoParticipants(
   existing: Participant[],
   registrations: RegistrationRecord[]
-): { merged: Participant[]; addedCount: number } {
+): { merged: Participant[]; addedCount: number; removedCount: number } {
+  const validRegIds = new Set(registrations.map((r) => `reg_${r.id}`));
+  const kept: Participant[] = [];
+  let removedCount = 0;
+
+  for (const p of existing) {
+    if (p.id.startsWith('reg_') && !validRegIds.has(p.id)) {
+      removedCount += 1;
+      continue;
+    }
+    kept.push(p);
+  }
+
   const byName = new Map<string, Participant>();
   const byRegId = new Set<string>();
 
-  for (const p of existing) {
+  for (const p of kept) {
     byName.set(normalizeNameKey(p.name), p);
     byRegId.add(p.id);
   }
@@ -167,9 +180,9 @@ export function mergeRegistrationsIntoParticipants(
     additions.push(newParticipant);
   }
 
-  if (additions.length === 0) {
-    return { merged: existing, addedCount: 0 };
+  if (additions.length === 0 && removedCount === 0) {
+    return { merged: existing, addedCount: 0, removedCount: 0 };
   }
 
-  return { merged: [...existing, ...additions], addedCount: additions.length };
+  return { merged: [...kept, ...additions], addedCount: additions.length, removedCount };
 }
