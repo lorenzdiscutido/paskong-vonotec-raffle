@@ -70,7 +70,7 @@ export async function registerAttendee(
       return {
         ok: false,
         isDuplicate: true,
-        error: `"${fullName}" is already registered for the raffle!`,
+        error: `"${fullName}" is already checked in for Paskong Vonotec!`,
       };
     }
     return { ok: false, error: error.message || 'Could not complete registration.' };

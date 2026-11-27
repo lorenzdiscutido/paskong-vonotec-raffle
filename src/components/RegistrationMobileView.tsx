@@ -67,18 +67,20 @@ export const RegistrationMobileView: React.FC = () => {
       <div className="relative z-10 w-full max-w-md space-y-5">
         {/* Header */}
         <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-amber-300/30 shadow-lg backdrop-blur-md">
-            <img
-              src="/vonotec-logo.png"
-              alt="Vonotec"
-              className="h-5 w-auto object-contain"
-            />
+          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-900/85 border border-amber-300/35 shadow-lg backdrop-blur-md">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-white/95 shadow-sm">
+              <img
+                src="/vonotec-logo.png"
+                alt="Vonotec"
+                className="h-4 w-auto object-contain"
+              />
+            </span>
             <span className="text-xs font-bold tracking-wider text-amber-200 uppercase">
-              Paskong Vonotec
+              Paskong Vonotec 2026
             </span>
           </div>
           <h1 className="font-display text-3xl font-bold text-white tracking-wide">
-            Raffle Check-In
+            Christmas Party Check-In
           </h1>
           <p className="text-xs text-slate-300 tracking-wide">
             Standing Tall Together: A Christmas of Gratitude
@@ -105,7 +107,7 @@ export const RegistrationMobileView: React.FC = () => {
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-emerald-300">
                 <Ticket className="w-3.5 h-3.5" />
-                <span>Official Digital Raffle Pass</span>
+                <span>Official Christmas Party Pass</span>
               </div>
               <h2 className="font-display text-2xl font-bold text-white">
                 {savedPass.full_name}
@@ -121,10 +123,10 @@ export const RegistrationMobileView: React.FC = () => {
             <div className="rounded-xl bg-slate-950/70 border border-slate-800 px-4 py-3 text-xs text-slate-300 space-y-1">
               <p className="font-semibold text-white flex items-center justify-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                You&apos;re in the Vonotec Summit Race!
+                Welcome to Paskong Vonotec!
               </p>
               <p className="text-slate-400">
-                Keep an eye on the big screen. Registered at{' '}
+                You&apos;re all checked in for tonight&apos;s Christmas celebration. Checked in at{' '}
                 {new Date(savedPass.created_at).toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
@@ -207,7 +209,7 @@ export const RegistrationMobileView: React.FC = () => {
               className="vonotec-festive-btn w-full py-3 rounded-xl font-display font-bold text-base flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <UserCheck className="w-5 h-5" />
-              <span>{submitting ? 'Registering...' : 'Join the Raffle'}</span>
+              <span>{submitting ? 'Checking In...' : 'Check In to the Party'}</span>
             </button>
           </form>
         )}

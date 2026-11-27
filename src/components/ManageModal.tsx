@@ -1206,7 +1206,7 @@ export const ManageModal: React.FC<ManageModalProps> = ({
                 <div className="space-y-1 max-w-xl">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-semibold uppercase tracking-wider text-sky-300">
-                      Venue Registration (Mobile + Kiosk)
+                      Christmas Party Registration (Mobile + Kiosk)
                     </h3>
                     <span
                       className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${

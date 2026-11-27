@@ -210,17 +210,19 @@ export const RegistrationKioskView: React.FC = () => {
       {/* Header */}
       <header className="relative z-10 border-b border-slate-800/80 bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <img
-            src="/vonotec-logo.png"
-            alt="Vonotec"
-            className="h-6 w-auto object-contain"
-          />
+          <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-white/95 shadow-sm">
+            <img
+              src="/vonotec-logo.png"
+              alt="Vonotec"
+              className="h-5 w-auto object-contain"
+            />
+          </span>
           <div>
             <h1 className="font-display text-lg font-bold text-white leading-tight">
-              Usher Check-In Kiosk
+              Christmas Party Usher Kiosk
             </h1>
             <p className="text-[11px] text-slate-400">
-              Register phone-less guests &amp; monitor live check-ins
+              Paskong Vonotec check-in desk for walk-in &amp; phone-less guests
             </p>
           </div>
         </div>
