@@ -3,6 +3,7 @@ import {
   ChevronRight,
   FastForward,
   Flag,
+  Lock,
   Projector,
   Radio,
   RefreshCw,
@@ -22,11 +23,24 @@ import { ClimbDurationInput } from './ClimbDurationInput';
 import { isSupabaseConfigured } from '../utils/supabaseClient';
 import {
   fetchRegistrations,
+  getKioskPin,
   mergeRegistrationsIntoParticipants,
   subscribeToRegistrations,
 } from '../utils/registrationService';
 
+const CONTROLLER_UNLOCK_SESSION_KEY = 'vonotec_controller_unlocked_v1';
+
 export const HostControllerView: React.FC = () => {
+  const [unlocked, setUnlocked] = useState<boolean>(() => {
+    try {
+      if (window.opener !== null) return true;
+      return window.sessionStorage.getItem(CONTROLLER_UNLOCK_SESSION_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
   const [participants, setParticipants] = useState<Participant[]>(() =>
     loadFromStorage(STORAGE_KEYS.participants, DEFAULT_PARTICIPANTS)
   );
@@ -229,8 +243,64 @@ export const HostControllerView: React.FC = () => {
       ? `Announcing Winner (${revealIndex + 1}/${currentBatch.length})`
       : `Rooftop Finish Line (${currentBatch.length})`;
 
+  const handleUnlock = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput.trim() === getKioskPin()) {
+      setUnlocked(true);
+      setPinError(false);
+      try {
+        window.sessionStorage.setItem(CONTROLLER_UNLOCK_SESSION_KEY, '1');
+      } catch {
+        // Ignore sessionStorage errors
+      }
+    } else {
+      setPinError(true);
+    }
+  };
+
+  if (!unlocked) {
+    return (
+      <div className="min-h-screen w-full bg-[#0a1020] text-slate-100 flex items-center justify-center px-4">
+        <form
+          onSubmit={handleUnlock}
+          className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900/90 p-6 shadow-2xl space-y-4 text-center"
+        >
+          <div className="mx-auto w-12 h-12 rounded-full bg-amber-400/15 border border-amber-300/30 flex items-center justify-center">
+            <Lock className="w-6 h-6 text-amber-300" />
+          </div>
+          <div>
+            <h1 className="font-display text-xl font-bold text-white">Paskong Vonotec Controller</h1>
+            <p className="text-xs text-slate-400 mt-1">
+              Enter the 4-digit host PIN to control the live raffle stage.
+            </p>
+          </div>
+          <input
+            type="password"
+            inputMode="numeric"
+            value={pinInput}
+            onChange={(e) => {
+              setPinInput(e.target.value);
+              setPinError(false);
+            }}
+            placeholder="Enter PIN (default: 1225)"
+            className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-center text-lg tracking-widest text-amber-200 font-bold focus:outline-none focus:border-amber-400"
+          />
+          {pinError && (
+            <p className="text-xs text-rose-400 font-medium">Incorrect PIN. Try again.</p>
+          )}
+          <button
+            type="submit"
+            className="vonotec-festive-btn w-full py-2.5 rounded-xl font-display font-bold text-sm cursor-pointer"
+          >
+            Unlock Controller
+          </button>
+        </form>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen w-full overflow-y-auto bg-[#0a1020] text-slate-100 p-4 sm:p-6 space-y-5">
+    <div className="min-h-screen w-full overflow-y-auto touch-pan-y bg-[#0a1020] text-slate-100 p-4 sm:p-6 space-y-5">
       <header className="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-[#0e1f38] border border-[#18355e]/90 shadow-xl">
         <div className="flex items-center gap-3">
           <div>
